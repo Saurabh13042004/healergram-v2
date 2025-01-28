@@ -30,22 +30,24 @@ exports.fetchAndStoreReels = async (req, res) => {
 
     // Fetch from external API
     const response = await axios.request(options);
-    const reelsData = response.data.items || []; // Adjust based on actual API response structure
+    console.log("Response" , response)
+    const reelsData = response.data.data.items;
+    console.log("Reels data" , reelsData)
 
     // Limit to first 10-20 items
-    const limitedReelsData = reelsData.slice(0, 20);
+    // const limitedReelsData = reelsData.slice(0, 20);
 
-    // Map into our structure
-    const reelsArray = limitedReelsData.map(item => ({
-      mediaUrl: item.video_url || item.thumbnail_url, // Adjust based on response
+
+    const reelsArray = reelsData.map(item => ({
+      mediaUrl: item.video_url || item.thumbnail_url, 
       reelLink: `https://www.instagram.com/reel/${item.code}/`,
       likeCount: item.like_count || 0,
       commentCount: item.comment_count || 0,
-      shareCount: item.reshare_count || 0, // Assuming 'reshare_count' represents share count
-      expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000), // 48 hours from now
+      shareCount: item.reshare_count || 0, 
+      expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000), 
     }));
 
-    // Upsert: if record exists, update it. Otherwise, create new.
+
     const updatedReelDoc = await Reel.findOneAndUpdate(
       { username, tenantName, storeName },
       {
