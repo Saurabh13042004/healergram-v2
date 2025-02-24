@@ -1,21 +1,16 @@
-// jobs/refreshReelsJob.js
 const cron = require('node-cron');
 const axios = require('axios');
 const Reel = require('../models/reelsModel');
 require('dotenv').config();
 
-/**
- * This job runs every 36 hours.
- * 
- * For a more refined approach, we might run it daily at a certain time,
- * or use an external scheduler. 
- */
-const refreshReelsJob = cron.schedule('0 0 */36 * * *', async () => {
-  console.log('Running refreshReelsJob - every 36 hours');
+const refreshReelsTask = async () => {
+  console.log('Running refreshReelsTask');
 
   try {
     // 1. Find all reels documents
+    console.log('Fetching all reels documents from DB...');
     const allReelsDocs = await Reel.find({});
+    console.log(`Fetched ${allReelsDocs.length} reels documents`);
     if (!allReelsDocs || allReelsDocs.length === 0) {
       console.log('No reels found, skipping refresh...');
       return;
@@ -24,6 +19,7 @@ const refreshReelsJob = cron.schedule('0 0 */36 * * *', async () => {
     // 2. Loop through each doc and refresh data
     for (let reelDoc of allReelsDocs) {
       const { username, tenantName, storeName } = reelDoc;
+      console.log(`Processing reel for username: ${username}, tenantName: ${tenantName}, storeName: ${storeName}`);
 
       // Prepare request to RapidAPI
       const options = {
@@ -36,35 +32,43 @@ const refreshReelsJob = cron.schedule('0 0 */36 * * *', async () => {
         }
       };
 
+      console.log(`Making API request for username: ${username} with options:`, options);
+
       // Fetch data
       const response = await axios.request(options);
-      const reelsData = response.data.reels || [];
+      console.log(`API response received for username: ${username}`);
+      
+      const reelsData = response.data.data.items;
+      console.log(`Received ${reelsData.length} reels from API for username: ${username}`);
+      
       const limitedReelsData = reelsData.slice(0, 20);
+      console.log(`Limited reels to ${limitedReelsData.length} for username: ${username}`);
 
       // Map new data
-      const reelsArray = limitedReelsData.map(item => {
-        return {
-          mediaUrl: item.video_url || item.display_url, 
-          reelLink: item.link,
-          likeCount: item.like_count,
-          commentCount: item.comment_count,
-          shareCount: item.share_count,
-          expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-        };
-      });
+      const reelsArray = limitedReelsData.map(item => ({
+        mediaUrl: item.video_url || item.display_url,
+        reelLink: item.link,
+        likeCount: item.like_count,
+        commentCount: item.comment_count,
+        shareCount: item.share_count,
+        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      }));
+      console.log(`Mapped reels data for username: ${username}`);
 
       // 3. Update the document
       reelDoc.reels = reelsArray;
       reelDoc.lastUpdated = new Date();
+      console.log(`Saving updated reel document for username: ${username}`);
       await reelDoc.save();
       console.log(`Reels updated for username: ${username}, tenantName: ${tenantName}, storeName: ${storeName}`);
     }
   } catch (error) {
-    console.error('Error in refreshReelsJob:', error);
+    console.error('Error in refreshReelsTask:', error);
   }
-}, {
+};
+
+const refreshReelsJob = cron.schedule('0 0 */36 * * *', refreshReelsTask, {
   scheduled: false
 });
 
-// Export so we can start it in server.js
-module.exports = refreshReelsJob;
+module.exports = { refreshReelsJob, refreshReelsTask };

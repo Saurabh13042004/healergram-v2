@@ -1,10 +1,9 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const connectDB = require('./config/database');
 const reelsRoute = require('./routes/reelsRoute');
-const refreshReelsJob = require('./jobs/refreshReelsJob');
+const { refreshReelsJob, refreshReelsTask } = require('./jobs/refreshReelsJob');
 
 const app = express();
 
@@ -18,10 +17,12 @@ app.use(express.json());
 // Routes
 app.use('/api/reels', reelsRoute);
 
-// Start the cron job
+// Start the cron job (schedules to run every 36 hours)
 refreshReelsJob.start();
 
-// Start the server
+// Immediately trigger the job on server start
+refreshReelsTask();
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
